@@ -7,7 +7,7 @@ from typing import Dict, Any, List, Optional, Tuple
 
 from fastmcp import FastMCP
 
-from mongo_mcp.config import logger
+from mongo_mcp.config import logger, MCP_TRANSPORT, MCP_HOST, MCP_PORT
 from mongo_mcp.db import close_connection, get_client
 from mongo_mcp.tools import (
     # Database management tools
@@ -87,7 +87,7 @@ def mcp_list_collections(database_name: str) -> List[str]:
     """
     return list_collections(database_name)
 
-@app.tool()
+# @app.tool()
 def mcp_create_database(
     database_name: str,
     initial_collection: str = "init",
@@ -111,7 +111,7 @@ def mcp_create_database(
     """
     return create_database(database_name, initial_collection, initial_document)
 
-@app.tool()
+# @app.tool()
 def mcp_drop_database(database_name: str) -> Dict[str, Any]:
     """Delete an entire database and all its collections.
     
@@ -143,7 +143,7 @@ def mcp_get_database_stats(database_name: str) -> Dict[str, Any]:
     """
     return get_database_stats(database_name)
 
-@app.tool()
+# @app.tool()
 def mcp_create_collection(
     database_name: str,
     collection_name: str,
@@ -165,7 +165,7 @@ def mcp_create_collection(
     """
     return create_collection(database_name, collection_name, options)
 
-@app.tool()
+# @app.tool()
 def mcp_drop_collection(database_name: str, collection_name: str) -> Dict[str, Any]:
     """Delete a collection from the database.
     
@@ -182,7 +182,7 @@ def mcp_drop_collection(database_name: str, collection_name: str) -> Dict[str, A
     """
     return drop_collection(database_name, collection_name)
 
-@app.tool()
+# @app.tool()
 def mcp_rename_collection(
     database_name: str,
     old_name: str,
@@ -222,7 +222,7 @@ def mcp_get_collection_stats(database_name: str, collection_name: str) -> Dict[s
     return get_collection_stats(database_name, collection_name)
 
 # Document CRUD operations
-@app.tool()
+# @app.tool()
 def mcp_insert_document(
     database_name: str, 
     collection_name: str, 
@@ -244,7 +244,7 @@ def mcp_insert_document(
     """
     return insert_document(database_name, collection_name, document)
 
-@app.tool()
+# @app.tool()
 def mcp_insert_many_documents(
     database_name: str,
     collection_name: str,
@@ -342,7 +342,7 @@ def mcp_count_documents(
     """
     return count_documents(database_name, collection_name, query)
 
-@app.tool()
+# @app.tool()
 def mcp_update_document(
     database_name: str,
     collection_name: str,
@@ -370,7 +370,7 @@ def mcp_update_document(
     """
     return update_document(database_name, collection_name, query, update_data, upsert, update_many)
 
-@app.tool()
+# @app.tool()
 def mcp_replace_document(
     database_name: str,
     collection_name: str,
@@ -396,7 +396,7 @@ def mcp_replace_document(
     """
     return replace_document(database_name, collection_name, query, replacement, upsert)
 
-@app.tool()
+# @app.tool()
 def mcp_delete_document(
     database_name: str,
     collection_name: str,
@@ -438,7 +438,7 @@ def mcp_list_indexes(database_name: str, collection_name: str) -> List[Dict[str,
     """
     return list_indexes(database_name, collection_name)
 
-@app.tool()
+# @app.tool()
 def mcp_create_index(
     database_name: str,
     collection_name: str,
@@ -462,7 +462,7 @@ def mcp_create_index(
     """
     return create_index(database_name, collection_name, keys, options)
 
-@app.tool()
+# @app.tool()
 def mcp_create_text_index(
     database_name: str,
     collection_name: str,
@@ -486,7 +486,7 @@ def mcp_create_text_index(
     """
     return create_text_index(database_name, collection_name, fields, options)
 
-@app.tool()
+# @app.tool()
 def mcp_create_compound_index(
     database_name: str,
     collection_name: str,
@@ -510,7 +510,7 @@ def mcp_create_compound_index(
     """
     return create_compound_index(database_name, collection_name, field_specs, options)
 
-@app.tool()
+# @app.tool()
 def mcp_drop_index(
     database_name: str,
     collection_name: str,
@@ -532,7 +532,7 @@ def mcp_drop_index(
     """
     return drop_index(database_name, collection_name, index_name)
 
-@app.tool()
+# @app.tool()
 def mcp_reindex_collection(database_name: str, collection_name: str) -> Dict[str, Any]:
     """Rebuild all indexes for the specified collection.
     
@@ -721,10 +721,36 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 
 def start_server() -> None:
-    """Start the MCP server with stdio transport."""
+    """Start the MCP server with configured transport."""
     try:
-        # 使用FastMCP的run方法，指定stdio传输方式
-        app.run(transport="stdio")
+        # Add CORS middleware for SSE connections from external services like VAPI
+        # This must be done before starting the server
+        try:
+            # Access the underlying Starlette app and add CORS middleware
+            if hasattr(app, 'asgi_app'):
+                from starlette.middleware.cors import CORSMiddleware as CORS
+                # Wrap the existing app with CORS middleware
+                original_app = app.asgi_app
+                app.asgi_app = CORS(
+                    original_app,
+                    allow_origins=["*"],
+                    allow_credentials=True,
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                    expose_headers=["*"],
+                )
+                logger.info("CORS middleware enabled for external access")
+        except Exception as cors_error:
+            logger.warning(f"Could not add CORS middleware: {cors_error}")
+        
+        if MCP_TRANSPORT in ["sse", "streamable-http"]:
+            # Start with network transport (HTTP server)
+            logger.info(f"Starting MCP server with {MCP_TRANSPORT} transport on {MCP_HOST}:{MCP_PORT}")
+            app.run(transport=MCP_TRANSPORT, host=MCP_HOST, port=MCP_PORT)
+        else:
+            # Default to stdio transport
+            logger.info("Starting MCP server with stdio transport")
+            app.run(transport="stdio")
     except Exception as e:
         logger.error(f"Failed to start MCP server: {e}")
         close_connection()

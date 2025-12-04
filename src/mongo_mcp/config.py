@@ -57,6 +57,11 @@ ENABLE_DANGEROUS_OPERATIONS = os.environ.get("ENABLE_DANGEROUS_OPERATIONS", "fal
 ENABLE_ADMIN_OPERATIONS = os.environ.get("ENABLE_ADMIN_OPERATIONS", "true").lower() == "true"
 ENABLE_INDEX_OPERATIONS = os.environ.get("ENABLE_INDEX_OPERATIONS", "true").lower() == "true"
 
+# Server configuration
+MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "sse")  # stdio, sse, or streamable-http (sse is fastest for network)
+MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
+MCP_PORT = int(os.environ.get("MCP_PORT", "8000"))
+
 # 创建日志格式
 log_formatter = logging.Formatter(
     "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
@@ -90,6 +95,10 @@ if console_handler:
 def log_configuration():
     """Log current configuration settings."""
     logger.info("=== MongoDB MCP Configuration ===")
+    logger.info(f"Transport: {MCP_TRANSPORT}")
+    if MCP_TRANSPORT in ["sse", "streamable-http"]:
+        logger.info(f"Server Host: {MCP_HOST}")
+        logger.info(f"Server Port: {MCP_PORT}")
     logger.info(f"MongoDB URI: {MONGODB_URI}")
     logger.info(f"Default Database: {MONGODB_DEFAULT_DB or 'Not set'}")
     logger.info(f"Connection Pool: {MONGODB_MIN_POOL_SIZE}-{MONGODB_MAX_POOL_SIZE}")
@@ -108,6 +117,7 @@ def log_configuration():
     logger.info(f"Index Operations Enabled: {ENABLE_INDEX_OPERATIONS}")
     logger.info(f"Log Level: {LOG_LEVEL}")
     logger.info("=== Configuration End ===")
+
 
 
 # Connection options dictionary for MongoDB client

@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 dependencies = [
     "fastmcp>=0.3.4",
     "pymongo>=4.5.0",
+    "requests>=2.32.5",
 ]
 
 authors = [
@@ -43,6 +44,7 @@ profile = "black"
 packages = ["src/mongo_mcp"]
 
 [[tool.uv.index]]
+url = "https://pypi.org/simple"
 default = true
 
 [dependency-groups]
